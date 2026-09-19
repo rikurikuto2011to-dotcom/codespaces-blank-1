@@ -130,27 +130,20 @@ if len(common_numeric_cols) < 3:
         "全ファイルに共通する数値列が3つ未満です。"
         "読み込み設定や、各ファイルの列名・列数を確認してください。"
     )
-    for name, df in dataframes.items():
-        st.write(f"**{name}**")
-        st.dataframe(df.head())
-    st.stop()
-
 # --- 4. データプレビュー（ファイルごとにタブ表示） -------------------------
-        st.subheader("データレビュー")
-        tabs = st.tabs(list(dataframes.keys()))
-        for tab, (name, df) in zip(tabs, dataframes.items()):
-            with tab:
-                n_rows = len(df)
-                max_idx = n_rows - 1
-                start, end = st.slider(
-                    "反映する行の範囲（0始まり）",
-                    min_value=0, max_value=max_idx, value=(0, max_idx),
-                    key=f"rowrange_{name}",
-                )
-                df = df.iloc[start:end + 1]
-                st.dataframe(df.head(10), use_container_width=True)
-
-
+st.subheader("データプレビュー")
+tabs = st.tabs(list(dataframes.keys()))
+for tab, (name, df) in zip(tabs, dataframes.items()):
+    with tab:
+        n_rows = len(df)
+        max_idx = max(n_rows - 1, 0)
+        start, end = st.slider(
+            "反映する行の範囲（0始まり）",
+            min_value=0, max_value=max_idx, value=(0, max_idx),
+            key=f"rowrange_{name}",
+        )
+        dataframes[name] = df.iloc[start:end + 1]
+        st.dataframe(dataframes[name].head(10), use_container_width=True)
 
 # --- 5. 軸の選択 ------------------------------------------------------------
 st.subheader("グラフ設定")
