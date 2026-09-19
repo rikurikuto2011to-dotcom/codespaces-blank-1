@@ -247,6 +247,9 @@ st.caption(
     "グラフ上の点を押す（またはカーソルを合わせる）と、その点のX/Y/Z座標が表示されます。"
     "少し大きめの丸は各軌道の最高点です。"
 )
+n_rows = len(df)
+max_idx = n_rows - 1
+name = "excel_data"
 start, end = st.slider(
     "反映する行の範囲（0始まり）",
     min_value=0, max_value=max_idx, value=(0, max_idx),
