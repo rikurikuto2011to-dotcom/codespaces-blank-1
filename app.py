@@ -255,7 +255,7 @@ start, end = st.slider(
     min_value=0, max_value=max_idx, value=(0, max_idx),
     key=f"rowrange_{name}",
 )
-dataframes[name] = df.iloc[start:end + 1]
+df = df.iloc[start:end + 1]
 st.caption(f"→ 全{n_rows}行中 {end - start + 1}行を使用")
 
 # --- 7. HTMLとして書き出し ---------------------------------------------------
