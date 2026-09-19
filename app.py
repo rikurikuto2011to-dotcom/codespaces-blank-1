@@ -136,8 +136,8 @@ if len(common_numeric_cols) < 3:
     st.stop()
 
 # --- 4. データプレビュー（ファイルごとにタブ表示） -------------------------
-st.subheader("データプレビュー")
-tabs = st.tabs(list(dataframes.keys()))
+        st.subheader("データレビュー")
+        tabs = st.tabs(list(dataframes.keys()))
         for tab, (name, df) in zip(tabs, dataframes.items()):
             with tab:
                 n_rows = len(df)
@@ -149,6 +149,7 @@ tabs = st.tabs(list(dataframes.keys()))
                 )
                 df = df.iloc[start:end + 1]
                 st.dataframe(df.head(10), use_container_width=True)
+
 
 
 # --- 5. 軸の選択 ------------------------------------------------------------
