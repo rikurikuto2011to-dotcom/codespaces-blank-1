@@ -35,6 +35,7 @@ else:
         "名前でExcelファイルを置いてください。ここにダウンロードボタンが表示されます。）"
     )
 
+
 # --- 1. ファイルアップロード（複数可、CSV/Excel対応） ------------------------
 uploaded_files = st.file_uploader(
     "ファイルを選択（CSVまたはExcel、複数選択可）",
@@ -246,6 +247,13 @@ st.caption(
     "グラフ上の点を押す（またはカーソルを合わせる）と、その点のX/Y/Z座標が表示されます。"
     "少し大きめの丸は各軌道の最高点です。"
 )
+start, end = st.slider(
+    "反映する行の範囲（0始まり）",
+    min_value=0, max_value=max_idx, value=(0, max_idx),
+    key=f"rowrange_{name}",
+)
+dataframes[name] = df.iloc[start:end + 1]
+st.caption(f"→ 全{n_rows}行中 {end - start + 1}行を使用")
 
 # --- 7. HTMLとして書き出し ---------------------------------------------------
 html_bytes = fig.to_html(include_plotlyjs="cdn").encode("utf-8")
