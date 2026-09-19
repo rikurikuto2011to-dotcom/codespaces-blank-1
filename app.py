@@ -138,9 +138,18 @@ if len(common_numeric_cols) < 3:
 # --- 4. データプレビュー（ファイルごとにタブ表示） -------------------------
 st.subheader("データプレビュー")
 tabs = st.tabs(list(dataframes.keys()))
-for tab, (name, df) in zip(tabs, dataframes.items()):
-    with tab:
-        st.dataframe(df.head(10), use_container_width=True)
+        for tab, (name, df) in zip(tabs, dataframes.items()):
+            with tab:
+                n_rows = len(df)
+                max_idx = n_rows - 1
+                start, end = st.slider(
+                    "反映する行の範囲（0始まり）",
+                    min_value=0, max_value=max_idx, value=(0, max_idx),
+                    key=f"rowrange_{name}",
+                )
+                df = df.iloc[start:end + 1]
+                st.dataframe(df.head(10), use_container_width=True)
+
 
 # --- 5. 軸の選択 ------------------------------------------------------------
 st.subheader("グラフ設定")
@@ -247,16 +256,6 @@ st.caption(
     "グラフ上の点を押す（またはカーソルを合わせる）と、その点のX/Y/Z座標が表示されます。"
     "少し大きめの丸は各軌道の最高点です。"
 )
-n_rows = len(df)
-max_idx = n_rows - 1
-name = "excel_data"
-start, end = st.slider(
-    "反映する行の範囲（0始まり）",
-    min_value=0, max_value=max_idx, value=(0, max_idx),
-    key=f"rowrange_{name}",
-)
-df = df.iloc[start:end + 1]
-st.caption(f"→ 全{n_rows}行中 {end - start + 1}行を使用")
 
 # --- 7. HTMLとして書き出し ---------------------------------------------------
 html_bytes = fig.to_html(include_plotlyjs="cdn").encode("utf-8")
