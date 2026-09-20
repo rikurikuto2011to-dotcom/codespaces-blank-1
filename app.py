@@ -69,6 +69,10 @@ with st.sidebar:
              "上から見たときのX-Z平面上の曲がり方（Z軸方向のずれ）を見やすくします。",
     )
     show_apex = st.checkbox("最高点を丸で強調表示する", value=True)
+        exclude_negative_y = st.checkbox(
+        "Y軸が0未満の点を除外する", value=True,
+        help="着地後のノイズなど、Y（高度）がマイナスになった点をグラフ・要約・誤差計算から除外します。",
+    )
     st.header("アニメーション")
     animate = st.checkbox(
         "軌道を伸ばしながら再生する", value=False,
@@ -191,6 +195,8 @@ for i, (name, df) in enumerate(dataframes.items()):
     if not visible.get(name, True):
         continue
     plot_df = df.dropna(subset=[x_col, y_col, z_col])
+    if exclude_negative_y:
+        plot_df = plot_df[plot_df[y_col] >= 0]
     plot_dfs[name] = plot_df
 
     color = palette[i % len(palette)]
