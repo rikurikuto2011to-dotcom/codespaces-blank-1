@@ -331,36 +331,62 @@ else:
     compare_enabled = st.checkbox("誤差を計算する", value=False, key="compare_enabled")
     if compare_enabled:
         file_names = list(plot_dfs.keys())
-        ref_name = st.selectbox("基準にするファイル（理論値・シミュレーション側）", file_names, key="ref_name")
-        ref_df = plot_dfs[ref_name]
-        ref_x = ref_df[x_col].to_numpy()
-        ref_y = ref_df[y_col].to_numpy()
-        ref_z = ref_df[z_col].to_numpy()
+        ref_name = st.selectbox(
+            "基準にするファイル（理論値・シミュレーション側）", file_names, key="ref_name",
+        )
+        # np.interpはxpが単調増加である必要があるため、念のためXでソートしておく。
+        ref_sorted = plot_dfs[ref_name].sort_values(x_col)
+        ref_x = ref_sorted[x_col].to_numpy()
+        ref_y = ref_sorted[y_col].to_numpy()
+        ref_z = ref_sorted[z_col].to_numpy()
 
         error_rows = []
         error_charts = {}
+        total_out_of_range = 0
         for name, pdf in plot_dfs.items():
             if name == ref_name:
                 continue
-            dists = []
-            for xv, yv, zv in zip(pdf[x_col].to_numpy(), pdf[y_col].to_numpy(), pdf[z_col].to_numpy()):
-                idx = int(np.argmin(np.abs(ref_x - xv)))
-                d = ((xv - ref_x[idx]) ** 2 + (yv - ref_y[idx]) ** 2 + (zv - ref_z[idx]) ** 2) ** 0.5
-                dists.append(d)
-            dists = pd.Series(dists, name="誤差")
+            xv = pdf[x_col].to_numpy()
+            yv = pdf[y_col].to_numpy()
+            zv = pdf[z_col].to_numpy()
+
+            y_interp = np.interp(xv, ref_x, ref_y)
+            z_interp = np.interp(xv, ref_x, ref_z)
+            dists = pd.Series(
+                np.sqrt((yv - y_interp) ** 2 + (zv - z_interp) ** 2), name="誤差",
+            )
+
+            out_of_range = int(((xv < ref_x.min()) | (xv > ref_x.max())).sum())
+            total_out_of_range += out_of_range
+
             error_rows.append({
-                "ファイル": name, "基準": ref_name,
-                "平均誤差": f"{dists.mean():.4g}", "最大誤差": f"{dists.max():.4g}",
+                "ファイル": name,
+                "基準": ref_name,
+                "平均誤差": f"{dists.mean():.4g}",
+                "最大誤差": f"{dists.max():.4g}",
+                f"{x_col}が基準の範囲外だった点": out_of_range,
             })
             error_charts[name] = dists.reset_index(drop=True)
 
         if error_rows:
             st.dataframe(pd.DataFrame(error_rows), use_container_width=True, hide_index=True)
+            st.caption(
+                f"誤差は、実測側の各点の{x_col}に合わせて基準（{ref_name}）側を線形補間し、"
+                f"同じ{x_col}地点における{y_col}・{z_col}の差から計算した距離です。"
+            )
+            if total_out_of_range > 0:
+                st.caption(
+                    f"⚠️ {x_col}が基準の範囲外だった点が{total_out_of_range}件ありました。"
+                    "これらは基準の端の値を使って計算しているため、誤差が実態より"
+                    "小さく/大きく出ている可能性があります。"
+                )
             for name, series in error_charts.items():
                 st.caption(f"「{name}」の誤差の推移（点の順番ごと）")
                 st.line_chart(series)
         else:
             st.caption("基準以外に表示中のファイルがありません。")
+
+
 
 
 # --- 7. HTMLとして書き出し ---------------------------------------------------
