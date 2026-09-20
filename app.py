@@ -158,11 +158,14 @@ with col3:
 # --- 5b. ファイルごとの線の太さ／点の大きさ ----------------------------------
 st.subheader("ファイルごとの表示設定")
 line_widths = {}
+visible = {}
 with st.expander("ファイルごとに太さを調整する", expanded=(len(dataframes) <= 3)):
     for name in dataframes.keys():
+        visible[name] = st.checkbox("グラフに表示する", value=True, key=f"visible_{name}")
         line_widths[name] = st.slider(
             f"「{name}」の太さ", min_value=1, max_value=14, value=4, key=f"width_{name}"
         )
+
 
 # --- 6. 3Dグラフの作成（ファイルごとに色分けして重ね描き） -------------------
 palette = px.colors.qualitative.Plotly  # ファイルごとの色を自動で割り当てる
@@ -172,13 +175,23 @@ fig = go.Figure()
 # こうすることで、複数の軌道の影が同じ高さに揃い、上から見た形を比較しやすくなる。
 if show_shadow:
     y_floor = min(df[y_col].min() for df in dataframes.values())
+summary_rows = []
+shadow_legend_shown = False
 
 for i, (name, df) in enumerate(dataframes.items()):
-    plot_df = df.dropna(subset=[x_col, y_col, z_col])
-    if plot_df.empty:
+    if not visible.get(name, True):
         continue
+    plot_df = df.dropna(subset=[x_col, y_col, z_col])
+
     color = palette[i % len(palette)]
     width = line_widths[name]
+    summary_rows.append({
+        "ファイル": name,
+        "点数": len(plot_df),
+        f"{x_col} 最小〜最大": f"{plot_df[x_col].min():.3g} 〜 {plot_df[x_col].max():.3g}",
+        f"{y_col} 最小〜最大": f"{plot_df[y_col].min():.3g} 〜 {plot_df[y_col].max():.3g}",
+        f"{z_col} 最小〜最大": f"{plot_df[z_col].min():.3g} 〜 {plot_df[z_col].max():.3g}",
+    })
 
     # 軸ラベルを埋め込んだホバー表示。押す(タップする)/カーソルを合わせると、
     # その点のX/Y/Z座標がこの書式で表示される。指を離す・カーソルを外すと消える。
@@ -212,9 +225,10 @@ for i, (name, df) in enumerate(dataframes.items()):
             line=dict(color="#999999", width=2, dash="dot"),
             name="地面への投影",
             legendgroup="shadow",
-            showlegend=(i == 0),  # 影の凡例は1つだけ表示すれば十分
+            showlegend=(not shadow_legend_shown),# 影の凡例は1つだけ表示すれば十分
             hoverinfo="skip",  # 影は投影用の補助線なので、押しても実座標と紛らわしくないよう非表示
         ))
+        shadow_legend_shown = True
 
     if show_apex:
         apex_idx = plot_df[y_col].idxmax()
@@ -250,6 +264,11 @@ st.caption(
     "グラフ上の点を押す（またはカーソルを合わせる）と、その点のX/Y/Z座標が表示されます。"
     "少し大きめの丸は各軌道の最高点です。"
 )
+st.subheader("軌道の要約")
+if summary_rows:
+    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+else:
+    st.caption("表示中のファイルがありません。上の「表示する」チェックを確認してください。")
 
 # --- 7. HTMLとして書き出し ---------------------------------------------------
 html_bytes = fig.to_html(include_plotlyjs="cdn").encode("utf-8")
