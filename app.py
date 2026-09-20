@@ -1,5 +1,6 @@
 import io
 from pathlib import Path
+import numpy as np
 
 import pandas as pd
 import plotly.express as px
@@ -68,6 +69,12 @@ with st.sidebar:
              "上から見たときのX-Z平面上の曲がり方（Z軸方向のずれ）を見やすくします。",
     )
     show_apex = st.checkbox("最高点を丸で強調表示する", value=True)
+    st.header("アニメーション")
+    animate = st.checkbox(
+        "軌道を伸ばしながら再生する", value=False,
+        help="「線でつなぐ」モードのときだけ有効です。",
+    )
+    n_frames = st.slider("アニメーションのコマ数", min_value=10, max_value=100, value=40) if animate else 40
 
 
 def load_dataframe(file_bytes: bytes, file_name: str, orientation: str, sheet_name=0) -> pd.DataFrame:
@@ -177,11 +184,14 @@ if show_shadow:
     y_floor = min(df[y_col].min() for df in dataframes.values())
 summary_rows = []
 shadow_legend_shown = False
+plot_dfs = {}
+anim_targets = []
 
 for i, (name, df) in enumerate(dataframes.items()):
     if not visible.get(name, True):
         continue
     plot_df = df.dropna(subset=[x_col, y_col, z_col])
+    plot_dfs[name] = plot_df
 
     color = palette[i % len(palette)]
     width = line_widths[name]
@@ -215,6 +225,8 @@ for i, (name, df) in enumerate(dataframes.items()):
         trace_kwargs["marker"] = dict(size=max(2, width * 0.4), color=color)
 
     fig.add_trace(go.Scatter3d(**trace_kwargs))
+    main_idx = len(fig.data) - 1
+    shadow_idx = None
 
     if show_shadow:
         fig.add_trace(go.Scatter3d(
@@ -229,6 +241,9 @@ for i, (name, df) in enumerate(dataframes.items()):
             hoverinfo="skip",  # 影は投影用の補助線なので、押しても実座標と紛らわしくないよう非表示
         ))
         shadow_legend_shown = True
+        shadow_idx = len(fig.data) - 1
+    if animate and not mode.startswith("点"):
+        anim_targets.append((main_idx, shadow_idx, plot_df))
 
     if show_apex:
         apex_idx = plot_df[y_col].idxmax()
@@ -258,17 +273,95 @@ fig.update_layout(
     margin=dict(l=0, r=0, t=10, b=0),
     hovermode="closest",
 )
+if animate and anim_targets:
+    frames = []
+    for k in range(1, n_frames + 1):
+        frac = k / n_frames
+        frame_data = []
+        frame_traces = []
+        for main_idx, shadow_idx, pdf in anim_targets:
+            count = max(1, round(frac * len(pdf)))
+            sub = pdf.iloc[:count]
+            frame_data.append(go.Scatter3d(x=sub[x_col], y=sub[y_col], z=sub[z_col]))
+            frame_traces.append(main_idx)
+            if shadow_idx is not None:
+                frame_data.append(go.Scatter3d(x=sub[x_col], y=[y_floor] * len(sub), z=sub[z_col]))
+                frame_traces.append(shadow_idx)
+        frames.append(go.Frame(data=frame_data, traces=frame_traces, name=str(k)))
+    fig.frames = frames
+    fig.update_layout(
+        updatemenus=[dict(
+            type="buttons", showactive=False, x=0.0, y=1.08, xanchor="left", yanchor="top",
+            buttons=[
+                dict(label="▶ 再生", method="animate", args=[None, dict(
+                    frame=dict(duration=80, redraw=True), fromcurrent=True, transition=dict(duration=0),
+                )]),
+                dict(label="⏸ 一時停止", method="animate", args=[[None], dict(
+                    frame=dict(duration=0, redraw=False), mode="immediate", transition=dict(duration=0),
+                )]),
+            ],
+        )],
+        sliders=[dict(
+            x=0.1, y=-0.12, len=0.85,
+            steps=[dict(
+                method="animate", label=str(k),
+                args=[[str(k)], dict(mode="immediate", frame=dict(duration=0, redraw=True))],
+            ) for k in range(1, n_frames + 1)],
+        )],
+    )
+
 
 st.plotly_chart(fig, use_container_width=True)
 st.caption(
     "グラフ上の点を押す（またはカーソルを合わせる）と、その点のX/Y/Z座標が表示されます。"
     "少し大きめの丸は各軌道の最高点です。"
 )
+if animate and not anim_targets:
+    st.caption("※ アニメーションは「線でつなぐ」モードで、表示中のファイルがあるときだけ再生できます。")
+
 st.subheader("軌道の要約")
 if summary_rows:
     st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
 else:
     st.caption("表示中のファイルがありません。上の「表示する」チェックを確認してください。")
+st.subheader("理論値と実測値の誤差")
+if len(plot_dfs) < 2:
+    st.caption("誤差を計算するには、2つ以上のファイルを表示する必要があります。")
+else:
+    compare_enabled = st.checkbox("誤差を計算する", value=False, key="compare_enabled")
+    if compare_enabled:
+        file_names = list(plot_dfs.keys())
+        ref_name = st.selectbox("基準にするファイル（理論値・シミュレーション側）", file_names, key="ref_name")
+        ref_df = plot_dfs[ref_name]
+        ref_x = ref_df[x_col].to_numpy()
+        ref_y = ref_df[y_col].to_numpy()
+        ref_z = ref_df[z_col].to_numpy()
+
+        error_rows = []
+        error_charts = {}
+        for name, pdf in plot_dfs.items():
+            if name == ref_name:
+                continue
+            dists = []
+            for xv, yv, zv in zip(pdf[x_col].to_numpy(), pdf[y_col].to_numpy(), pdf[z_col].to_numpy()):
+                idx = int(np.argmin(np.abs(ref_x - xv)))
+                d = ((xv - ref_x[idx]) ** 2 + (yv - ref_y[idx]) ** 2 + (zv - ref_z[idx]) ** 2) ** 0.5
+                dists.append(d)
+            dists = pd.Series(dists, name="誤差")
+            error_rows.append({
+                "ファイル": name, "基準": ref_name,
+                "平均誤差": f"{dists.mean():.4g}", "最大誤差": f"{dists.max():.4g}",
+            })
+            error_charts[name] = dists.reset_index(drop=True)
+
+        if error_rows:
+            st.dataframe(pd.DataFrame(error_rows), use_container_width=True, hide_index=True)
+            for name, series in error_charts.items():
+                st.caption(f"「{name}」の誤差の推移（点の順番ごと）")
+                st.line_chart(series)
+        else:
+            st.caption("基準以外に表示中のファイルがありません。")
+
 
 # --- 7. HTMLとして書き出し ---------------------------------------------------
 html_bytes = fig.to_html(include_plotlyjs="cdn").encode("utf-8")
