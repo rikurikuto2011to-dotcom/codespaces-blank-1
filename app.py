@@ -69,7 +69,7 @@ with st.sidebar:
              "上から見たときのX-Z平面上の曲がり方（Z軸方向のずれ）を見やすくします。",
     )
     show_apex = st.checkbox("最高点を丸で強調表示する", value=True)
-        exclude_negative_y = st.checkbox(
+    exclude_negative_y = st.checkbox(
         "Y軸が0未満の点を除外する", value=True,
         help="着地後のノイズなど、Y（高度）がマイナスになった点をグラフ・要約・誤差計算から除外します。",
     )
