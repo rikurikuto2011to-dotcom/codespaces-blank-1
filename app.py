@@ -186,6 +186,8 @@ fig = go.Figure()
 # こうすることで、複数の軌道の影が同じ高さに揃い、上から見た形を比較しやすくなる。
 if show_shadow:
     y_floor = min(df[y_col].min() for df in dataframes.values())
+    if exclude_negative_y:
+        y_floor = max(y_floor, 0)
 summary_rows = []
 shadow_legend_shown = False
 plot_dfs = {}
